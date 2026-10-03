@@ -79,9 +79,34 @@ jobs:
           docker push ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
           docker push ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:latest
 
-      - name: Deploy new revision to Azure Container Apps
+      - name: Deploy Green Revision with 0% Initial Traffic
         run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          NEW_REVISION="${{ env.CONTAINER_APP_NAME }}--$SHORT_SHA"
+          echo "Deploying revision: $NEW_REVISION"
+
           az containerapp update \
             --name ${{ env.CONTAINER_APP_NAME }} \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-            --image ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            --image ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            --revision-suffix $SHORT_SHA
+
+          az containerapp revision label add \
+            --name ${{ env.CONTAINER_APP_NAME }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --label green \
+            --revision $NEW_REVISION
+
+          az containerapp ingress traffic set \
+            --name ${{ env.CONTAINER_APP_NAME }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --label-weight blue=100 green=0
+
+      - name: Promote Green to 100% Production Traffic
+        run: |
+          echo "Promoting Green revision to 100% production traffic..."
+          az containerapp ingress traffic set \
+            --name ${{ env.CONTAINER_APP_NAME }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --label-weight blue=0 green=100
+
