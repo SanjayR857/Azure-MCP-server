@@ -6,8 +6,11 @@ from app.mcp.middleware.authentication import (
 
 
 @pytest.fixture
-def verifier():
+def verifier(monkeypatch):
+    from app.config.settings import settings
+    monkeypatch.setattr(settings, "local_auth_token", "local-read-token")
     return StaticTokenVerifier()
+
 
 
 @pytest.mark.anyio

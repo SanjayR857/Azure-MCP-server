@@ -39,8 +39,10 @@ jobs:
           pip install pytest pytest-asyncio
 
       - name: Run unit & integration tests
+        env:
+          MCP_LOCAL_TEST_TOKEN: "local-read-token"
         run: |
-          pytest -v
+          python -m pytest -v
 
   build-and-deploy:
     name: Build, Push & Deploy Revision
