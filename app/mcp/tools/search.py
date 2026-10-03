@@ -13,4 +13,5 @@ def register_search_tools(mcp):
         ],
     ) -> str:
         """Search for information using a search query."""
+
         return f"Search requested for: {query}"
