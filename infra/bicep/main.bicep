@@ -13,6 +13,7 @@ param entraTenantId string = ''
 param entraClientId string = ''
 param requiredScope string = 'mcp:read'
 param assignSubscriptionReaderRole bool = false
+param appInsightsName string = 'azure-mcp-insights'
 
 resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
   name: acrName
@@ -37,6 +38,15 @@ resource workspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
     }
 
     retentionInDays: 30
+  }
+}
+
+module appInsights 'modules/app-insights.bicep' = {
+  name: 'appInsightsDeploy'
+  params: {
+    appInsightsName: appInsightsName
+    location: location
+    workspaceId: workspace.id
   }
 }
 
@@ -154,6 +164,10 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
               name: 'MCP_RESOURCE_URL'
               value: 'https://${containerAppName}.${environment.properties.defaultDomain}/mcp'
             }
+            {
+              name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
+              value: appInsights.outputs.connectionString
+            }
           ]
         }
       ]
@@ -215,6 +229,31 @@ module subReaderRole 'modules/subscription-role.bicep' = if (assignSubscriptionR
   }
 }
 
+module diagnosticSettings 'modules/diagnostic-settings.bicep' = {
+  name: 'diagnosticSettingsDeploy'
+  params: {
+    containerAppName: containerAppName
+    environmentName: containerEnvironmentName
+    workspaceId: workspace.id
+  }
+}
+
+module alerts 'modules/alerts.bicep' = {
+  name: 'alertsDeploy'
+  params: {
+    containerAppName: containerAppName
+  }
+}
+
+module workbook 'modules/workbook.bicep' = {
+  name: 'workbookDeploy'
+  params: {
+    workbookDisplayName: 'Azure MCP Server - Inspection & Observability'
+    location: location
+    workspaceId: workspace.id
+  }
+}
+
 output acrLoginServer string = acr.properties.loginServer
 
 output containerAppFqdn string = containerApp.properties.configuration.ingress.fqdn
@@ -222,3 +261,7 @@ output containerAppFqdn string = containerApp.properties.configuration.ingress.f
 output mcpEndpoint string = 'https://${containerApp.properties.configuration.ingress.fqdn}/mcp'
 
 output healthEndpoint string = 'https://${containerApp.properties.configuration.ingress.fqdn}/health'
+
+output appInsightsConnectionString string = appInsights.outputs.connectionString
+
+output workbookId string = workbook.outputs.workbookId

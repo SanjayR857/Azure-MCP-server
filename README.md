@@ -98,3 +98,36 @@ $env:ACR_NAME = "<your-acr-name>"
 .\scripts\build.ps1
 .\scripts\deploy.ps1
 ```
+
+---
+
+## 🔍 Azure Monitor & Live Inspection
+
+The project includes an enterprise-grade monitoring, inspection, and alerting stack in Azure Cloud:
+
+- **Application Insights (`azure-mcp-insights`)**: OpenTelemetry APM for distributed tracing of MCP requests, live metrics, and exception reporting.
+- **Diagnostic Settings**: Streams console logs, system logs, HTTP logs, and container metrics directly to Log Analytics (`azure-mcp-law`).
+- **Metric Alerts**: Proactive alert rules for High CPU (>80%), High Memory (>80%), Crash Loops/Restarts (>2 in 5m), and High Latency (>2000ms).
+- **Inspection Workbook**: Pre-built Azure Monitor Workbook for real-time traffic visualization, latency charts, and interactive log querying.
+
+### Real-Time CLI Inspection Tool
+Inspect your live deployment in Azure Cloud directly from PowerShell:
+
+```powershell
+# Run full health inspection
+.\scripts\inspect.ps1
+
+# Filter Log Analytics for errors only
+.\scripts\inspect.ps1 -ErrorsOnly
+
+# Stream live container logs in real time
+.\scripts\inspect.ps1 -Tail
+```
+
+### Deploying / Updating Monitoring Separately
+To provision or refresh the monitoring stack on an existing Azure resource group:
+
+```powershell
+.\scripts\deploy-monitoring.ps1 -ResourceGroup "azure-mcp-server"
+```
+

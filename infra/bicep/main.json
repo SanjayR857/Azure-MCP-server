@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.47.16.16243",
-      "templateHash": "2413486154217787302"
+      "templateHash": "6227272021658893399"
     }
   },
   "parameters": {
@@ -39,7 +39,7 @@
     },
     "entraTenantId": {
       "type": "string",
-      "defaultValue": "[subscription().tenantId]"
+      "defaultValue": ""
     },
     "entraClientId": {
       "type": "string",
@@ -47,11 +47,15 @@
     },
     "requiredScope": {
       "type": "string",
-      "defaultValue": "access_as_user"
+      "defaultValue": "mcp:read"
     },
     "assignSubscriptionReaderRole": {
       "type": "bool",
       "defaultValue": false
+    },
+    "appInsightsName": {
+      "type": "string",
+      "defaultValue": "azure-mcp-insights"
     }
   },
   "resources": [
@@ -186,6 +190,10 @@
                 {
                   "name": "MCP_RESOURCE_URL",
                   "value": "[format('https://{0}.{1}/mcp', parameters('containerAppName'), reference(resourceId('Microsoft.App/managedEnvironments', parameters('containerEnvironmentName')), '2024-03-01').defaultDomain)]"
+                },
+                {
+                  "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+                  "value": "[reference(resourceId('Microsoft.Resources/deployments', 'appInsightsDeploy'), '2025-04-01').outputs.connectionString.value]"
                 }
               ]
             }
@@ -198,6 +206,7 @@
       },
       "dependsOn": [
         "[resourceId('Microsoft.ContainerRegistry/registries', parameters('acrName'))]",
+        "[resourceId('Microsoft.Resources/deployments', 'appInsightsDeploy')]",
         "[resourceId('Microsoft.App/managedEnvironments', parameters('containerEnvironmentName'))]"
       ]
     },
@@ -227,6 +236,88 @@
       },
       "dependsOn": [
         "[resourceId('Microsoft.App/containerApps', parameters('containerAppName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "appInsightsDeploy",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "appInsightsName": {
+            "value": "[parameters('appInsightsName')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "workspaceId": {
+            "value": "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsName'))]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.47.16.16243",
+              "templateHash": "17739093888125863115"
+            }
+          },
+          "parameters": {
+            "appInsightsName": {
+              "type": "string"
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]"
+            },
+            "workspaceId": {
+              "type": "string"
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Insights/components",
+              "apiVersion": "2020-02-02",
+              "name": "[parameters('appInsightsName')]",
+              "location": "[parameters('location')]",
+              "kind": "web",
+              "properties": {
+                "Application_Type": "web",
+                "WorkspaceResourceId": "[parameters('workspaceId')]",
+                "publicNetworkAccessForIngestion": "Enabled",
+                "publicNetworkAccessForQuery": "Enabled",
+                "IngestionMode": "LogAnalytics"
+              }
+            }
+          ],
+          "outputs": {
+            "appInsightsId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Insights/components', parameters('appInsightsName'))]"
+            },
+            "connectionString": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Insights/components', parameters('appInsightsName')), '2020-02-02').ConnectionString]"
+            },
+            "instrumentationKey": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Insights/components', parameters('appInsightsName')), '2020-02-02').InstrumentationKey]"
+            },
+            "appId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Insights/components', parameters('appInsightsName')), '2020-02-02').AppId]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsName'))]"
       ]
     },
     {
@@ -284,6 +375,513 @@
       "dependsOn": [
         "[resourceId('Microsoft.App/containerApps', parameters('containerAppName'))]"
       ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "diagnosticSettingsDeploy",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "containerAppName": {
+            "value": "[parameters('containerAppName')]"
+          },
+          "environmentName": {
+            "value": "[parameters('containerEnvironmentName')]"
+          },
+          "workspaceId": {
+            "value": "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsName'))]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.47.16.16243",
+              "templateHash": "13024202819112063023"
+            }
+          },
+          "parameters": {
+            "containerAppName": {
+              "type": "string"
+            },
+            "environmentName": {
+              "type": "string"
+            },
+            "workspaceId": {
+              "type": "string"
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Insights/diagnosticSettings",
+              "apiVersion": "2021-05-01-preview",
+              "scope": "[resourceId('Microsoft.App/containerApps', parameters('containerAppName'))]",
+              "name": "[format('{0}-diagnostics', parameters('containerAppName'))]",
+              "properties": {
+                "workspaceId": "[parameters('workspaceId')]",
+                "metrics": [
+                  {
+                    "category": "AllMetrics",
+                    "enabled": true
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Microsoft.Insights/diagnosticSettings",
+              "apiVersion": "2021-05-01-preview",
+              "scope": "[resourceId('Microsoft.App/managedEnvironments', parameters('environmentName'))]",
+              "name": "[format('{0}-diagnostics', parameters('environmentName'))]",
+              "properties": {
+                "workspaceId": "[parameters('workspaceId')]",
+                "logs": [
+                  {
+                    "category": "ContainerAppConsoleLogs",
+                    "enabled": true
+                  },
+                  {
+                    "category": "ContainerAppSystemLogs",
+                    "enabled": true
+                  },
+                  {
+                    "category": "ContainerAppHTTPLogs",
+                    "enabled": true
+                  }
+                ],
+                "metrics": [
+                  {
+                    "category": "AllMetrics",
+                    "enabled": true
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "alertsDeploy",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "containerAppName": {
+            "value": "[parameters('containerAppName')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.47.16.16243",
+              "templateHash": "5978668320148498594"
+            }
+          },
+          "parameters": {
+            "containerAppName": {
+              "type": "string"
+            },
+            "actionGroupId": {
+              "type": "string",
+              "defaultValue": ""
+            }
+          },
+          "variables": {
+            "actionsList": "[if(empty(parameters('actionGroupId')), createArray(), createArray(createObject('actionGroupId', parameters('actionGroupId'))))]"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Insights/metricAlerts",
+              "apiVersion": "2018-03-01",
+              "name": "[format('{0}-alert-restarts', parameters('containerAppName'))]",
+              "location": "global",
+              "properties": {
+                "description": "Triggers when Container App restarts more than 2 times in 5 minutes (possible crash loop).",
+                "severity": 1,
+                "enabled": true,
+                "scopes": [
+                  "[resourceId('Microsoft.App/containerApps', parameters('containerAppName'))]"
+                ],
+                "evaluationFrequency": "PT1M",
+                "windowSize": "PT5M",
+                "criteria": {
+                  "odata.type": "Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria",
+                  "allOf": [
+                    {
+                      "name": "HighRestartCount",
+                      "metricName": "RestartCount",
+                      "operator": "GreaterThan",
+                      "threshold": 2,
+                      "timeAggregation": "Total",
+                      "criterionType": "StaticThresholdCriterion"
+                    }
+                  ]
+                },
+                "actions": "[variables('actionsList')]"
+              }
+            },
+            {
+              "type": "Microsoft.Insights/metricAlerts",
+              "apiVersion": "2018-03-01",
+              "name": "[format('{0}-alert-cpu', parameters('containerAppName'))]",
+              "location": "global",
+              "properties": {
+                "description": "Triggers when Container App CPU usage exceeds 80%.",
+                "severity": 2,
+                "enabled": true,
+                "scopes": [
+                  "[resourceId('Microsoft.App/containerApps', parameters('containerAppName'))]"
+                ],
+                "evaluationFrequency": "PT1M",
+                "windowSize": "PT5M",
+                "criteria": {
+                  "odata.type": "Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria",
+                  "allOf": [
+                    {
+                      "name": "HighCPU",
+                      "metricName": "CpuPercentage",
+                      "operator": "GreaterThan",
+                      "threshold": 80,
+                      "timeAggregation": "Average",
+                      "criterionType": "StaticThresholdCriterion"
+                    }
+                  ]
+                },
+                "actions": "[variables('actionsList')]"
+              }
+            },
+            {
+              "type": "Microsoft.Insights/metricAlerts",
+              "apiVersion": "2018-03-01",
+              "name": "[format('{0}-alert-memory', parameters('containerAppName'))]",
+              "location": "global",
+              "properties": {
+                "description": "Triggers when Container App memory usage exceeds 80%.",
+                "severity": 2,
+                "enabled": true,
+                "scopes": [
+                  "[resourceId('Microsoft.App/containerApps', parameters('containerAppName'))]"
+                ],
+                "evaluationFrequency": "PT1M",
+                "windowSize": "PT5M",
+                "criteria": {
+                  "odata.type": "Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria",
+                  "allOf": [
+                    {
+                      "name": "HighMemory",
+                      "metricName": "MemoryPercentage",
+                      "operator": "GreaterThan",
+                      "threshold": 80,
+                      "timeAggregation": "Average",
+                      "criterionType": "StaticThresholdCriterion"
+                    }
+                  ]
+                },
+                "actions": "[variables('actionsList')]"
+              }
+            },
+            {
+              "type": "Microsoft.Insights/metricAlerts",
+              "apiVersion": "2018-03-01",
+              "name": "[format('{0}-alert-latency', parameters('containerAppName'))]",
+              "location": "global",
+              "properties": {
+                "description": "Triggers when Container App average response time exceeds 2000 milliseconds.",
+                "severity": 3,
+                "enabled": true,
+                "scopes": [
+                  "[resourceId('Microsoft.App/containerApps', parameters('containerAppName'))]"
+                ],
+                "evaluationFrequency": "PT1M",
+                "windowSize": "PT5M",
+                "criteria": {
+                  "odata.type": "Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria",
+                  "allOf": [
+                    {
+                      "name": "HighResponseTime",
+                      "metricName": "ResponseTime",
+                      "operator": "GreaterThan",
+                      "threshold": 2000,
+                      "timeAggregation": "Average",
+                      "criterionType": "StaticThresholdCriterion"
+                    }
+                  ]
+                },
+                "actions": "[variables('actionsList')]"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "workbookDeploy",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "workbookDisplayName": {
+            "value": "Azure MCP Server - Inspection & Observability"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "workspaceId": {
+            "value": "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsName'))]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.47.16.16243",
+              "templateHash": "16613784199117565666"
+            }
+          },
+          "parameters": {
+            "workbookDisplayName": {
+              "type": "string",
+              "defaultValue": "Azure MCP Server - Inspection & Observability"
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]"
+            },
+            "workspaceId": {
+              "type": "string"
+            }
+          },
+          "variables": {
+            "workbookData": {
+              "version": "Notebook/1.0",
+              "items": [
+                {
+                  "type": 1,
+                  "content": {
+                    "json": "# Azure Remote MCP Server - Observability and Live Inspection\nComprehensive real-time health, request analytics, resource utilization, and console log inspection for your Model Context Protocol server running on Azure Container Apps."
+                  },
+                  "name": "title"
+                },
+                {
+                  "type": 9,
+                  "content": {
+                    "version": "KqlParameterItem/1.0",
+                    "parameters": [
+                      {
+                        "id": "timeRange",
+                        "name": "TimeRange",
+                        "type": 4,
+                        "isRequired": true,
+                        "value": {
+                          "durationMs": 86400000
+                        },
+                        "typeSettings": {
+                          "selectableValues": [
+                            {
+                              "durationMs": 300000,
+                              "createdTime": "2026-10-06T00:00:00.000Z",
+                              "isCurrent": false,
+                              "label": "Last 5 minutes"
+                            },
+                            {
+                              "durationMs": 3600000,
+                              "createdTime": "2026-10-06T00:00:00.000Z",
+                              "isCurrent": false,
+                              "label": "Last 1 hour"
+                            },
+                            {
+                              "durationMs": 14400000,
+                              "createdTime": "2026-10-06T00:00:00.000Z",
+                              "isCurrent": false,
+                              "label": "Last 4 hours"
+                            },
+                            {
+                              "durationMs": 86400000,
+                              "createdTime": "2026-10-06T00:00:00.000Z",
+                              "isCurrent": true,
+                              "label": "Last 24 hours"
+                            },
+                            {
+                              "durationMs": 604800000,
+                              "createdTime": "2026-10-06T00:00:00.000Z",
+                              "isCurrent": false,
+                              "label": "Last 7 days"
+                            }
+                          ]
+                        },
+                        "timeContext": {
+                          "durationMs": 86400000
+                        }
+                      },
+                      {
+                        "id": "searchFilter",
+                        "name": "SearchFilter",
+                        "type": 1,
+                        "isRequired": false,
+                        "value": "",
+                        "description": "Filter logs by keyword or regex"
+                      }
+                    ],
+                    "style": "pills",
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces"
+                  },
+                  "name": "parameters"
+                },
+                {
+                  "type": 1,
+                  "content": {
+                    "json": "### Request Activity and Health Summary"
+                  },
+                  "name": "metrics_header"
+                },
+                {
+                  "type": 3,
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "ContainerAppConsoleLogs_CL\n| where TimeGenerated {TimeRange}\n| summarize TotalLogs = count(),\n    HealthChecks = countif(Log_s contains \"/health\"),\n    McpRequests = countif(Log_s contains \"/mcp\"),\n    Errors = countif(Log_s contains \"ERROR\" or Log_s contains \"error\" or Log_s contains \"Exception\")\n| project TotalLogs, HealthChecks, McpRequests, Errors",
+                    "size": 4,
+                    "title": "Activity Counters",
+                    "timeContextFromParameter": "TimeRange",
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces",
+                    "visualization": "tiles",
+                    "tileSettings": {
+                      "titleContent": {
+                        "columnMatch": "TotalLogs",
+                        "formatter": 1
+                      },
+                      "showBorder": true
+                    }
+                  },
+                  "name": "summary_tiles"
+                },
+                {
+                  "type": 1,
+                  "content": {
+                    "json": "### Request Volume Over Time"
+                  },
+                  "name": "traffic_chart_header"
+                },
+                {
+                  "type": 3,
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "ContainerAppConsoleLogs_CL\n| where TimeGenerated {TimeRange}\n| summarize\n    HealthChecks = countif(Log_s contains \"/health\"),\n    McpRequests = countif(Log_s contains \"/mcp\"),\n    Other = countif(not(Log_s contains \"/health\" or Log_s contains \"/mcp\"))\n    by bin(TimeGenerated, 5m)",
+                    "size": 0,
+                    "title": "HTTP Requests by Route (5m Bins)",
+                    "timeContextFromParameter": "TimeRange",
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces",
+                    "visualization": "barchart"
+                  },
+                  "name": "requests_barchart"
+                },
+                {
+                  "type": 1,
+                  "content": {
+                    "json": "### Live Console Logs Inspection\nFilter and inspect container output logs in real-time."
+                  },
+                  "name": "logs_header"
+                },
+                {
+                  "type": 3,
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "ContainerAppConsoleLogs_CL\n| where TimeGenerated {TimeRange}\n| where isempty(\"{SearchFilter}\") or Log_s contains \"{SearchFilter}\"\n| project TimeGenerated, ContainerName_s, Log_s\n| order by TimeGenerated desc\n| take 250",
+                    "size": 0,
+                    "title": "Recent Container Console Logs",
+                    "timeContextFromParameter": "TimeRange",
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces",
+                    "visualization": "table",
+                    "gridSettings": {
+                      "formatters": [
+                        {
+                          "columnMatch": "TimeGenerated",
+                          "formatter": 6
+                        },
+                        {
+                          "columnMatch": "Log_s",
+                          "formatter": 1
+                        }
+                      ]
+                    }
+                  },
+                  "name": "console_logs_grid"
+                },
+                {
+                  "type": 1,
+                  "content": {
+                    "json": "### Container System Events and Lifecycle\nContainer startup, readiness/liveness probe transitions, and replica scaling events."
+                  },
+                  "name": "system_logs_header"
+                },
+                {
+                  "type": 3,
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "ContainerAppSystemLogs_CL\n| where TimeGenerated {TimeRange}\n| project TimeGenerated, ContainerAppName_s, EventSource_s, Type_s, Reason_s, Log_s\n| order by TimeGenerated desc\n| take 100",
+                    "size": 0,
+                    "title": "System Lifecycle and Probe Events",
+                    "timeContextFromParameter": "TimeRange",
+                    "queryType": 0,
+                    "resourceType": "microsoft.operationalinsights/workspaces",
+                    "visualization": "table"
+                  },
+                  "name": "system_logs_grid"
+                }
+              ]
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Insights/workbooks",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(resourceGroup().id, 'mcp-server-inspection-workbook')]",
+              "location": "[parameters('location')]",
+              "kind": "shared",
+              "properties": {
+                "displayName": "[parameters('workbookDisplayName')]",
+                "category": "workbook",
+                "sourceId": "[parameters('workspaceId')]",
+                "serializedData": "[string(variables('workbookData'))]"
+              }
+            }
+          ],
+          "outputs": {
+            "workbookId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Insights/workbooks', guid(resourceGroup().id, 'mcp-server-inspection-workbook'))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsName'))]"
+      ]
     }
   ],
   "outputs": {
@@ -302,6 +900,14 @@
     "healthEndpoint": {
       "type": "string",
       "value": "[format('https://{0}/health', reference(resourceId('Microsoft.App/containerApps', parameters('containerAppName')), '2024-03-01').configuration.ingress.fqdn)]"
+    },
+    "appInsightsConnectionString": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'appInsightsDeploy'), '2025-04-01').outputs.connectionString.value]"
+    },
+    "workbookId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'workbookDeploy'), '2025-04-01').outputs.workbookId.value]"
     }
   }
 }

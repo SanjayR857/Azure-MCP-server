@@ -13,6 +13,7 @@ class Settings(BaseSettings):
 
     # Azure
     azure_subscription_id: str | None = None
+    applicationinsights_connection_string: str | None = None
 
     # Entra ID
     entra_tenant_id: str | None = None

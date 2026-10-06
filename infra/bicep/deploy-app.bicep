@@ -20,6 +20,17 @@ resource workspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
   }
 }
 
+param appInsightsName string = 'azure-mcp-insights'
+
+module appInsights 'modules/app-insights.bicep' = {
+  name: 'appInsightsDeploy'
+  params: {
+    appInsightsName: appInsightsName
+    location: location
+    workspaceId: workspace.id
+  }
+}
+
 resource environment 'Microsoft.App/managedEnvironments@2024-03-01' = {
   name: containerEnvironmentName
   location: location
@@ -109,6 +120,10 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
               name: 'LOG_LEVEL'
               value: 'INFO'
             }
+            {
+              name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
+              value: appInsights.outputs.connectionString
+            }
           ]
         }
       ]
@@ -120,6 +135,33 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
   }
 }
 
+module diagnosticSettings 'modules/diagnostic-settings.bicep' = {
+  name: 'diagnosticSettingsDeploy'
+  params: {
+    containerAppName: containerAppName
+    environmentName: containerEnvironmentName
+    workspaceId: workspace.id
+  }
+}
+
+module alerts 'modules/alerts.bicep' = {
+  name: 'alertsDeploy'
+  params: {
+    containerAppName: containerAppName
+  }
+}
+
+module workbook 'modules/workbook.bicep' = {
+  name: 'workbookDeploy'
+  params: {
+    workbookDisplayName: 'Azure MCP Server - Inspection & Observability'
+    location: location
+    workspaceId: workspace.id
+  }
+}
+
 output fqdn string = containerApp.properties.configuration.ingress.fqdn
 output healthEndpoint string = 'https://${containerApp.properties.configuration.ingress.fqdn}/health'
 output mcpEndpoint string = 'https://${containerApp.properties.configuration.ingress.fqdn}/mcp'
+output appInsightsConnectionString string = appInsights.outputs.connectionString
+output workbookId string = workbook.outputs.workbookId
