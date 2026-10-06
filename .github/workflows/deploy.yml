@@ -14,13 +14,13 @@ permissions:
   contents: read
 
 env:
-  AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID || vars.AZURE_CLIENT_ID }}
-  AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID || vars.AZURE_TENANT_ID }}
-  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID || vars.AZURE_SUBSCRIPTION_ID }}
-  ACR_NAME: ${{ secrets.ACR_NAME || vars.ACR_NAME }}
+  AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  ACR_NAME: ${{ secrets.ACR_NAME }}
   IMAGE_NAME: azure-mcp-server
-  RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP || vars.RESOURCE_GROUP }}
-  CONTAINER_APP_NAME: ${{ secrets.CONTAINER_APP_NAME || vars.CONTAINER_APP_NAME }}
+  RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
+  CONTAINER_APP_NAME: ${{ secrets.CONTAINER_APP_NAME }}
 
 jobs:
   test:
@@ -58,17 +58,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate Deployment Configuration
+      - name: Sanitize and Validate Configuration
         run: |
+          # Strip accidental trailing newlines, carriage returns, or spaces from GitHub Secrets
+          CLEAN_ACR=$(echo "${{ secrets.ACR_NAME }}" | tr -d '[:space:]')
+          CLEAN_RG=$(echo "${{ secrets.RESOURCE_GROUP }}" | tr -d '[:space:]')
+          CLEAN_APP=$(echo "${{ secrets.CONTAINER_APP_NAME }}" | tr -d '[:space:]')
+
           missing=""
-          [ -z "$ACR_NAME" ] && missing="${missing} ACR_NAME"
-          [ -z "$RESOURCE_GROUP" ] && missing="${missing} RESOURCE_GROUP"
-          [ -z "$CONTAINER_APP_NAME" ] && missing="${missing} CONTAINER_APP_NAME"
+          [ -z "$CLEAN_ACR" ] && missing="${missing} ACR_NAME"
+          [ -z "$CLEAN_RG" ] && missing="${missing} RESOURCE_GROUP"
+          [ -z "$CLEAN_APP" ] && missing="${missing} CONTAINER_APP_NAME"
+
           if [ -n "$missing" ]; then
-            echo "::error::Missing required configuration:${missing}."
-            echo "::notice::Add them in GitHub -> Settings -> Secrets and variables -> Actions (under either Secrets or Variables)."
+            echo "::error::Missing required secret(s):${missing}."
+            echo "::notice::Add them in GitHub -> Settings -> Secrets and variables -> Actions -> Repository Secrets."
             exit 1
           fi
+
+          echo "ACR_NAME=${CLEAN_ACR}" >> $GITHUB_ENV
+          echo "RESOURCE_GROUP=${CLEAN_RG}" >> $GITHUB_ENV
+          echo "CONTAINER_APP_NAME=${CLEAN_APP}" >> $GITHUB_ENV
+          echo "IMAGE_NAME=azure-mcp-server" >> $GITHUB_ENV
 
       - name: Azure Login via OIDC
         uses: azure/login@v2
@@ -79,23 +90,23 @@ jobs:
 
       - name: ACR Login
         run: |
-          az acr login --name ${{ env.ACR_NAME }}
+          az acr login --name "$ACR_NAME"
 
       - name: Build Docker Image
         run: |
           docker build \
-            -t ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }} \
-            -t ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:latest \
+            -t "${ACR_NAME}.azurecr.io/${IMAGE_NAME}:${{ github.sha }}" \
+            -t "${ACR_NAME}.azurecr.io/${IMAGE_NAME}:latest" \
             .
 
       - name: Push Docker Image to ACR
         run: |
-          docker push ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
-          docker push ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:latest
+          docker push "${ACR_NAME}.azurecr.io/${IMAGE_NAME}:${{ github.sha }}"
+          docker push "${ACR_NAME}.azurecr.io/${IMAGE_NAME}:latest"
 
       - name: Deploy to Azure Container App
         run: |
           az containerapp update \
-            --name ${{ env.CONTAINER_APP_NAME }} \
-            --resource-group ${{ env.RESOURCE_GROUP }} \
-            --image ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            --name "$CONTAINER_APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --image "${ACR_NAME}.azurecr.io/${IMAGE_NAME}:${{ github.sha }}"
