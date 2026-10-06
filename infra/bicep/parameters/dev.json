@@ -1,0 +1,30 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "acrName": {
+      "value": "azuremcpacr"
+    },
+    "logAnalyticsName": {
+      "value": "azure-mcp-law"
+    },
+    "containerEnvironmentName": {
+      "value": "azuremcp-env"
+    },
+    "containerAppName": {
+      "value": "azure-mcp-server"
+    },
+    "imageName": {
+      "value": "azure-mcp-server"
+    },
+    "imageTag": {
+      "value": "v1"
+    },
+    "entraClientId": {
+      "value": ""
+    },
+    "requiredScope": {
+      "value": "access_as_user"
+    }
+  }
+}

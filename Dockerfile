@@ -1,32 +1,53 @@
-FROM python:3.12-slim
+# syntax=docker/dockerfile:1
 
-# Prevent Python from creating .pyc files
-# and ensure logs are written immediately.
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+# -----------------------------------------------------------------------------
+# Stage 1: Build dependencies & virtual environment
+# -----------------------------------------------------------------------------
+FROM python:3.11.11-slim AS builder
 
-# Container networking
-ENV HOST=0.0.0.0
-ENV PORT=8000
-ENV ENVIRONMENT=docker
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-# Install dependencies first for Docker layer caching.
-COPY requirements.txt .
+# Create virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 
+# 1. Install dependencies first for optimal Docker layer caching
+COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
-# Copy only the application source.
-COPY app ./app
+# 2. Install application package without dependencies (already installed above)
+COPY pyproject.toml .
+COPY src ./src
+RUN pip install --no-cache-dir --no-deps .
 
-# Run as a non-root user.
+# -----------------------------------------------------------------------------
+# Stage 2: Minimal runtime image
+# -----------------------------------------------------------------------------
+FROM python:3.11.11-slim AS runner
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH="/opt/venv/bin:$PATH"
+
+WORKDIR /app
+
+# Create non-root application user
 RUN useradd --create-home --shell /bin/bash appuser \
     && chown -R appuser:appuser /app
+
+# Copy virtual environment and source code
+COPY --from=builder /opt/venv /opt/venv
+COPY --chown=appuser:appuser src ./src
 
 USER appuser
 
 EXPOSE 8000
 
-CMD ["python", "-m", "app.main"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
+
+CMD ["python", "-m", "azure_mcp_server.main"]

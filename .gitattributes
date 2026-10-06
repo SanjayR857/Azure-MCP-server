@@ -1,0 +1,13 @@
+# Normalize line endings to LF across all platforms
+* text=auto eol=lf
+
+# Ensure shell scripts always use LF
+*.sh text eol=lf
+
+# Ensure PowerShell scripts use CRLF on Windows
+*.ps1 text eol=crlf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.ico binary

@@ -1,45 +1,21 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Virtual environments
 .venv/
-env/
 venv/
-ENV/
+__pycache__/
+*.pyc
 
-# Environment variables
 .env
-.env.*
-!.env.example
 
-# Pytest / Testing
 .pytest_cache/
+.ruff_cache/
+
 .coverage
 htmlcov/
 
-# IDEs
-.vscode/
 .idea/
+.vscode/
 
-# Bicep compiled outputs
-infra/bicep/*.json
+dist/
+build/
+*.egg-info/
+
+.DS_Store

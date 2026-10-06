@@ -1,0 +1,18 @@
+services:
+  azure-mcp-server:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: azure-mcp-server
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    
+    env_file: 
+      - .env
+    
+    environment:
+      HOST: "0.0.0.0"
+      PORT: 8000
+      LOG_LEVEL: INFO
