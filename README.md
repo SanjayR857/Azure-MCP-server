@@ -1,11 +1,11 @@
 # Azure Remote MCP Server
 
-[![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-blue.svg)](https://www.python.org/)
-[![Model Context Protocol](https://img.shields.io/badge/MCP-2.0+-purple.svg)](https://modelcontextprotocol.io/)
-[![Azure Container Apps](https://img.shields.io/badge/Azure-Container%20Apps-0078D4.svg)](https://azure.microsoft.com/en-us/products/container-apps)
-[![Azure Key Vault](https://img.shields.io/badge/Azure-Key%20Vault-0078D4.svg)](https://azure.microsoft.com/en-us/products/key-vault)
-[![Azure Monitor](https://img.shields.io/badge/Azure-Monitor%20%26%20OpenTelemetry-orange.svg)](https://learn.microsoft.com/en-us/azure/azure-monitor/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-blue.svg)
+![Model Context Protocol](https://img.shields.io/badge/MCP-2.0+-purple.svg)
+![Azure Container Apps](https://img.shields.io/badge/Azure-Container%20Apps-0078D4.svg)
+![Azure Key Vault](https://img.shields.io/badge/Azure-Key%20Vault-0078D4.svg)
+![Azure Monitor](https://img.shields.io/badge/Azure-Monitor%20%26%20OpenTelemetry-orange.svg)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
 A production-grade, cloud-native **Model Context Protocol (MCP)** server deployed remotely on **Azure Container Apps** with **Azure Key Vault** secret management, **Microsoft Entra ID** OAuth2/JWT authentication, **OpenTelemetry distributed tracing** to Application Insights, and native integration with **LangChain**, local LLMs (**Ollama**), and cloud agents.
 
@@ -63,8 +63,8 @@ graph TD
         IDE["Cursor / Claude Desktop"]
     end
 
-    subgraph AzureCloud["Azure Cloud (centralindia)"]
-        subgraph ACA["Azure Container Apps (azure-mcp-server)"]
+    subgraph AzureCloud["Azure Cloud (<your-region>)"]
+        subgraph ACA["Azure Container Apps (<your-container-app>)"]
             Endpoint["HTTP Streamable Ingress (/mcp)"]
             HealthEndpoint["Health Probe (/health)"]
             AuthMiddleware["Entra Token Verifier (JWKS / RS256)"]
@@ -74,13 +74,13 @@ graph TD
 
         subgraph Security["Identity & Secrets"]
             Entra["Microsoft Entra ID (Tenant & App Registration)"]
-            KV["Azure Key Vault (kv-azure-mcp-2026)"]
+            KV["Azure Key Vault (<your-keyvault-name>)"]
             MI["System-Assigned Managed Identity"]
         end
 
         subgraph Observability["Azure Monitor & Observability Stack"]
-            AppInsights["Application Insights (azure-mcp-insights)"]
-            LAW["Log Analytics Workspace (azure-mcp-law)"]
+            AppInsights["Application Insights (<your-appinsights-name>)"]
+            LAW["Log Analytics Workspace (<your-law-name>)"]
             Alerts["Metric Alerts (CPU, Memory, Restarts, Latency)"]
             Workbook["Azure Monitor Inspection Workbook"]
         end
@@ -251,8 +251,8 @@ The server uses Pydantic Settings ([`src/azure_mcp_server/core/config.py`](file:
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/SanjayR857/azure-mcp-server.git
-   cd azure-mcp-server
+   git clone https://github.com/<your-org>/<your-repo>.git
+   cd <your-repo>
    ```
 
 2. **Create virtual environment and install dependencies**:
@@ -343,12 +343,12 @@ Deploy the full Azure environment (Container Registry, Log Analytics, Applicatio
 
 ```powershell
 az deployment group create `
-    --resource-group "azure-mcp-server" `
+    --resource-group "<your-resource-group>" `
     --template-file infra/bicep/main.bicep `
-    --parameters acrName="azurecontainerregistry2026" `
-                 logAnalyticsName="azure-mcp-law" `
-                 containerEnvironmentName="azure-mcp-env" `
-                 containerAppName="azure-mcp-server" `
+    --parameters acrName="<your-acr-name>" `
+                 logAnalyticsName="<your-log-analytics-name>" `
+                 containerEnvironmentName="<your-env-name>" `
+                 containerAppName="<your-container-app-name>" `
                  assignSubscriptionReaderRole=true
 ```
 
@@ -357,10 +357,10 @@ az deployment group create `
 Build and push the container image to Azure Container Registry (ACR) and update the Container App:
 
 ```powershell
-# Set ACR name
-$env:ACR_NAME = "azurecontainerregistry2026"
-$env:RESOURCE_GROUP = "azure-mcp-server"
-$env:CONTAINER_APP_NAME = "azure-mcp-server"
+# Set ACR and deployment target variables
+$env:ACR_NAME = "<your-acr-name>"
+$env:RESOURCE_GROUP = "<your-resource-group>"
+$env:CONTAINER_APP_NAME = "<your-container-app-name>"
 
 # Build image locally and tag for ACR
 .\scripts\build.ps1
@@ -381,21 +381,21 @@ Run the automated PowerShell provisioning script:
 
 ```powershell
 .\scripts\deploy-keyvault.ps1 `
-    -ResourceGroup "azure-mcp-server" `
-    -KeyVaultName "kv-azure-mcp-2026" `
-    -ContainerAppName "azure-mcp-server" `
-    -Location "centralindia"
+    -ResourceGroup "<your-resource-group>" `
+    -KeyVaultName "<your-keyvault-name>" `
+    -ContainerAppName "<your-container-app-name>" `
+    -Location "<your-region>"
 ```
 
 ### What this script automates:
 
 1. **Provisions Key Vault**: Creates the Azure Key Vault with Azure RBAC authorization enabled.
-2. **Assigns RBAC**: Grants the Container App's System-Assigned Managed Identity the **Key Vault Secrets User** role (`4633458b-17de-408a-b874-0445c86b69e6`).
+2. **Assigns RBAC**: Grants the Container App's System-Assigned Managed Identity the **Key Vault Secrets User** role.
 3. **Injects Secret References**: Configures Azure Container App secret references pointing directly to Key Vault:
-   - `appinsights-cs` &rarr; `keyvaultref:https://<vault>.vault.azure.net/secrets/appinsights-connection-string,identityref:system`
-   - `azure-sub-id` &rarr; `keyvaultref:https://<vault>.vault.azure.net/secrets/azure-subscription-id,identityref:system`
-   - `entra-tenant-id` &rarr; `keyvaultref:https://<vault>.vault.azure.net/secrets/entra-tenant-id,identityref:system`
-   - `entra-client-id` &rarr; `keyvaultref:https://<vault>.vault.azure.net/secrets/entra-client-id,identityref:system`
+   - `appinsights-cs` &rarr; `keyvaultref:https://<your-keyvault-name>.vault.azure.net/secrets/appinsights-connection-string,identityref:system`
+   - `azure-sub-id` &rarr; `keyvaultref:https://<your-keyvault-name>.vault.azure.net/secrets/azure-subscription-id,identityref:system`
+   - `entra-tenant-id` &rarr; `keyvaultref:https://<your-keyvault-name>.vault.azure.net/secrets/entra-tenant-id,identityref:system`
+   - `entra-client-id` &rarr; `keyvaultref:https://<your-keyvault-name>.vault.azure.net/secrets/entra-client-id,identityref:system`
 4. **Binds Environment Variables**: Links `APPLICATIONINSIGHTS_CONNECTION_STRING`, `AZURE_SUBSCRIPTION_ID`, `ENTRA_TENANT_ID`, and `ENTRA_CLIENT_ID` to their respective `secretref:*` definitions.
 
 ---
@@ -410,9 +410,9 @@ Deploy Application Insights, Metric Alerts, Log Analytics Diagnostic Settings, a
 
 ```powershell
 .\scripts\deploy-monitoring.ps1 `
-    -ResourceGroup "azure-mcp-server" `
-    -ContainerAppName "azure-mcp-server" `
-    -AppInsightsName "azure-mcp-insights"
+    -ResourceGroup "<your-resource-group>" `
+    -ContainerAppName "<your-container-app-name>" `
+    -AppInsightsName "<your-appinsights-name>"
 ```
 
 Proactive Metric Alerts provisioned:
@@ -458,7 +458,7 @@ When enabling authentication in production:
    - Name: `Azure Remote MCP Server`.
 
 2. **Expose an API**:
-   - Under **Expose an API**, set the Application ID URI (e.g., `api://<client-id>`).
+   - Under **Expose an API**, set the Application ID URI (e.g., `api://<your-client-id>`).
    - Add a scope:
      - Scope name: `mcp:read` (or `access_as_user`)
      - Who can consent: Admins and users
@@ -467,8 +467,8 @@ When enabling authentication in production:
 3. **Configure the Container App**:
    - Store the Tenant ID and Client ID in Key Vault (`entra-tenant-id`, `entra-client-id`).
    - The server validates:
-     - Issuer: `https://login.microsoftonline.com/<tenant-id>/v2.0`
-     - Audience: `<client-id>` or `api://<client-id>`
+     - Issuer: `https://login.microsoftonline.com/<your-tenant-id>/v2.0`
+     - Audience: `<your-client-id>` or `api://<your-client-id>`
      - Scope: `mcp:read` in the token's `scp` claim or `roles` claim.
 
 ---
@@ -492,9 +492,9 @@ from azure.identity import AzureCliCredential
 from langchain_ollama import ChatOllama
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
-# Your deployed Azure Container App MCP endpoint
-MCP_URL = "https://azure-mcp-server.lemonforest-dbf13967.centralindia.azurecontainerapps.io/mcp"
-ENTRA_CLIENT_ID = "a8f23ec3-b349-478e-b03a-320e0b7696ce"
+# Dummy remote endpoint and client ID placeholders
+MCP_URL = "https://<your-container-app>.<your-region>.azurecontainerapps.io/mcp"
+ENTRA_CLIENT_ID = "<your-client-id>"
 
 def get_auth_headers():
     """Acquires a Bearer token via Azure CLI if authentication is enabled."""
@@ -556,7 +556,7 @@ To configure the remote server in desktop clients supporting MCP over HTTP / SSE
 {
   "mcpServers": {
     "azure-mcp-server": {
-      "url": "https://azure-mcp-server.lemonforest-dbf13967.centralindia.azurecontainerapps.io/mcp",
+      "url": "https://<your-container-app>.<your-region>.azurecontainerapps.io/mcp",
       "transport": "http",
       "headers": {
         "Authorization": "Bearer <YOUR_ENTRA_ACCESS_TOKEN>"
@@ -582,14 +582,14 @@ The repository includes a GitHub Actions workflow in [`.github/workflows/deploy.
 
 Configure these in **GitHub Repository** &rarr; **Settings** &rarr; **Secrets and variables** &rarr; **Actions**:
 
-| Secret Name | Description |
-| :--- | :--- |
-| `AZURE_CLIENT_ID` | App Registration Client ID with Federated Credential |
-| `AZURE_TENANT_ID` | Azure Entra Tenant ID |
-| `AZURE_SUBSCRIPTION_ID` | Azure Subscription ID |
-| `ACR_NAME` | Name of your Azure Container Registry |
-| `RESOURCE_GROUP` | Resource Group where Container App is deployed |
-| `CONTAINER_APP_NAME` | Name of the Azure Container App |
+| Secret Name | Description | Example Placeholder |
+| :--- | :--- | :--- |
+| `AZURE_CLIENT_ID` | App Registration Client ID with Federated Credential | `<your-client-id>` |
+| `AZURE_TENANT_ID` | Azure Entra Tenant ID | `<your-tenant-id>` |
+| `AZURE_SUBSCRIPTION_ID` | Azure Subscription ID | `<your-subscription-id>` |
+| `ACR_NAME` | Name of your Azure Container Registry | `<your-acr-name>` |
+| `RESOURCE_GROUP` | Resource Group where Container App is deployed | `<your-resource-group>` |
+| `CONTAINER_APP_NAME` | Name of the Azure Container App | `<your-container-app-name>` |
 
 ---
 
